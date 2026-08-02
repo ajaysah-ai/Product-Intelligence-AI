@@ -18,19 +18,19 @@ services:
       timeout: 5s
       retries: 10
 
-#  backend:
-#    build: ./backend
-#    container_name: pi_backend
-#    restart: unless-stopped
-#    env_file: .env
-#    depends_on:
-#      db:
-#        condition: service_healthy
-#      ports:
-#        - "8000:8000"
-#      volumes:
-#        - media:/app/media
-#        - ./documents:/app/documents
+  backend:
+    build: ./backend
+    container_name: pi_backend
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      ports:
+        - "8000:8000"
+      volumes:
+        - media:/app/media
+        - ./documents:/app/documents
 
 #  frontend:
 #    build: ./backend
