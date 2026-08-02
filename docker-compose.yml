@@ -3,7 +3,7 @@ services:
     image: pgvector/pgvector:pg16
     container_name: pi_db
     restart: unless-stopped
-    env_file: .env
+    env_file: backend/.env
     ports:
       - "5432:5432"
     volumes:
