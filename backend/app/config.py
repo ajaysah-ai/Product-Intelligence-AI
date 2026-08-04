@@ -8,6 +8,11 @@ class Settings(BaseSettings):
     app_env: str = "development"
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_dim: int = 384
+    groq_api_key: str = ""
+    groq_model: str = "openai/gpt-oss-120b"
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+    omniroute_api_key: str = ""
+    omniroute_base_url: str = ""
     log_level: str = "info"
 
     class Config:
