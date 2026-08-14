@@ -11,6 +11,7 @@ from app.deps import get_db
 from app.extraction.batch import extract_batch
 from app.mcp_client.client import call_source_agent
 from app.models import TempDocument, TempRequest
+from app.orchestration.service import orchestrate_request
 from app.services.chunk_embed_service import process_request_chunks_and_embeddings
 from app.validation import validate_single_file, validate_text_and_files
 
@@ -192,3 +193,14 @@ def fetch_external(request_id: str, payload: dict = Body(...), db: Session = Dep
 
     db.commit()
     return {"request_id": request_id, "results": results}
+
+
+@app.post("/orchestrate/{request_id}")
+def orchestrate(request_id: str, payload: dict = Body(default={}), db: Session = Depends(get_db)):
+    """Runs the Supervisor graph: guardrails check, then only the sub-agents
+    for this request's sources_selected. Body optionally provides
+    {"urls": {"website": "https://..."}} for sources needing a fresh fetch —
+    sources with no URL just use whatever's already in temp_chunks."""
+    urls = payload.get("urls", {}) if payload else {}
+    result = orchestrate_request(db, request_id, urls)
+    return result

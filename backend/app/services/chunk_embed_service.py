@@ -9,7 +9,9 @@ from app.models import TempChunk, TempDocument, TempEmbedding, TempRequest
 
 def process_request_chunks_and_embeddings(db: Session, temp_request: TempRequest) -> dict:
     eligible_docs = [
-        d for d in temp_request.documents if d.extraction_status == "success" and d.extracted_text
+        d
+        for d in temp_request.documents
+        if d.extraction_status == "success" and d.extracted_text and not d.chunks
     ]
 
     chunk_objects: list[TempChunk] = []

@@ -108,7 +108,6 @@ def main():
         # -----------------------------------------------------------------
         chunk_a = next(c for c in all_chunks if c.temp_document_id == doc_a.id)
         chunk_b = next(c for c in all_chunks if c.temp_document_id == doc_b_near_dup.id)
-        chunk_c = next(c for c in all_chunks if c.temp_document_id == doc_c_unrelated.id)
 
         nearest_to_a = db.execute(
             select(TempEmbedding.temp_chunk_id, TempEmbedding.vector.cosine_distance(chunk_a.embedding.vector).label("distance"))
