@@ -1,16 +1,21 @@
+import csv
+import io
 import json
 from typing import Optional
 
-from fastapi import Body, Depends, FastAPI, File, Form, UploadFile
+from fastapi import Body, Depends, FastAPI, File, Form, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import MEDIA_DIR
 from app.db import check_db_connection
+from app.delivery.export import build_delivery_row
+from app.delivery.schema import DELIVERY_COLUMNS
 from app.deps import get_db
 from app.extraction.batch import extract_batch
 from app.mcp_client.client import call_source_agent
-from app.models import TempDocument, TempRequest
+from app.models import TempDetectedProduct, TempDocument, TempProductAttribute, TempRequest
 from app.orchestration.service import orchestrate_request
 from app.services.chunk_embed_service import process_request_chunks_and_embeddings
 from app.validation import validate_single_file, validate_text_and_files
@@ -204,3 +209,92 @@ def orchestrate(request_id: str, payload: dict = Body(default={}), db: Session =
     urls = payload.get("urls", {}) if payload else {}
     result = orchestrate_request(db, request_id, urls)
     return result
+
+
+@app.post("/import-dataset")
+async def import_dataset(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Bulk-imports the hackathon's input CSV — one TempRequest per row,
+    mapping the 6 input columns directly and defaulting sources_selected to
+    all 4 sources (the dataset gives no source preference)."""
+    content = await file.read()
+    text = content.decode("utf-8-sig", errors="replace")
+    reader = csv.DictReader(io.StringIO(text))
+
+    required_cols = {"Mfg_Part_Num", "Part_Desc", "E1_Brand", "Unilog_Brand", "DIB_Brand", "Part_Manuf"}
+    if not required_cols.issubset(set(reader.fieldnames or [])):
+        return {"error": f"CSV missing required columns. Expected: {sorted(required_cols)}"}
+
+    created_ids = []
+    for row in reader:
+        query_text = f"{(row.get('Mfg_Part_Num') or '').strip()} {(row.get('Part_Desc') or '').strip()}".strip()
+        temp_request = TempRequest(
+            user_text=query_text,
+            sources_selected=["website", "catalog", "tech_doc", "digital_asset"],
+            mfg_part_num=row.get("Mfg_Part_Num"),
+            part_desc=row.get("Part_Desc"),
+            e1_brand=row.get("E1_Brand"),
+            unilog_brand=row.get("Unilog_Brand"),
+            dib_brand=row.get("DIB_Brand"),
+            part_manuf=row.get("Part_Manuf"),
+        )
+        db.add(temp_request)
+        db.flush()
+        created_ids.append(str(temp_request.id))
+
+    db.commit()
+    return {"imported_count": len(created_ids), "request_ids": created_ids}
+
+
+@app.get("/export/{request_id}")
+def export_request(request_id: str, db: Session = Depends(get_db)):
+    """Exports the most recent orchestration result for a request as a
+    single-row CSV in the exact 252-column delivery format."""
+    detected = (
+        db.execute(
+            select(TempDetectedProduct)
+            .where(TempDetectedProduct.temp_request_id == request_id)
+            .order_by(TempDetectedProduct.created_at.desc())
+        )
+        .scalars()
+        .first()
+    )
+    if detected is None:
+        return {"error": "No detected product for this request_id — run /orchestrate first"}
+
+    attrs = (
+        db.execute(select(TempProductAttribute).where(TempProductAttribute.temp_detected_product_id == detected.id))
+        .scalars()
+        .all()
+    )
+    attribute_rows = [
+        {
+            "attribute_type": a.attribute_type,
+            "attribute_key": a.attribute_key,
+            "attribute_value": a.attribute_value,
+            "unit": a.unit,
+        }
+        for a in attrs
+    ]
+
+    core = {
+        "mfg_part_num": detected.mfg_part_num,
+        "part_desc": detected.part_desc,
+        "e1_brand": detected.e1_brand,
+        "unilog_brand": detected.unilog_brand,
+        "dib_brand": detected.dib_brand,
+        "part_manuf": detected.part_manuf,
+        "manufacturer_name": detected.manufacturer_name,
+        "title": detected.title,
+    }
+    row = build_delivery_row(core, detected.delivery_fields, attribute_rows)
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=DELIVERY_COLUMNS)
+    writer.writeheader()
+    writer.writerow(row)
+
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{request_id}.csv"'},
+    )

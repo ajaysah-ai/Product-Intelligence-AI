@@ -46,6 +46,22 @@ class Product(Base):
     id = _uuid_col()
     title = Column(Text, nullable=False)
     source_request_id = Column(UUID(as_uuid=True), nullable=True)  # traceability only, no FK (temp rows get cleaned up)
+
+    # Core fields from the hackathon delivery format (see app/delivery/schema.py) —
+    # passthrough from the input dataset, plus the researched manufacturer name.
+    mfg_part_num = Column(Text, nullable=True)
+    part_desc = Column(Text, nullable=True)
+    e1_brand = Column(Text, nullable=True)
+    unilog_brand = Column(Text, nullable=True)
+    dib_brand = Column(Text, nullable=True)
+    part_manuf = Column(Text, nullable=True)
+    manufacturer_name = Column(Text, nullable=True)
+
+    # The ~75 long-tail delivery columns (URLs, descriptions, dimensions,
+    # documents, images, identifiers) that don't need their own DB column —
+    # keyed by the EXACT delivery column name, e.g. delivery_fields["MFR URL"].
+    delivery_fields = Column(JSONB, nullable=True)
+
     created_at = Column(DateTime(timezone=True), default=_now)
     updated_at = Column(DateTime(timezone=True), default=_now, onupdate=_now)
 
@@ -128,6 +144,16 @@ class TempRequest(Base):
     id = _uuid_col()
     user_text = Column(Text, nullable=True)
     sources_selected = Column(JSONB, nullable=True)  # e.g. ["website", "catalog"]
+
+    # Raw input-dataset columns (see app/delivery/schema.py PASSTHROUGH_COLUMNS)
+    # — set at bulk-import time, copied into TempDetectedProduct at orchestration time.
+    mfg_part_num = Column(Text, nullable=True)
+    part_desc = Column(Text, nullable=True)
+    e1_brand = Column(Text, nullable=True)
+    unilog_brand = Column(Text, nullable=True)
+    dib_brand = Column(Text, nullable=True)
+    part_manuf = Column(Text, nullable=True)
+
     status = Column(Enum(*REQUEST_STATUSES, name="request_status_enum"), default="pending", nullable=False)
     created_at = Column(DateTime(timezone=True), default=_now)
 
@@ -188,6 +214,18 @@ class TempDetectedProduct(Base):
     id = _uuid_col()
     temp_request_id = Column(UUID(as_uuid=True), ForeignKey("temp_requests.id", ondelete="CASCADE"), nullable=False)
     title = Column(Text, nullable=True)
+
+    # Mirrors Product's core delivery-format fields (see app/delivery/schema.py)
+    # so Phase 9's approval step can copy these straight across.
+    mfg_part_num = Column(Text, nullable=True)
+    part_desc = Column(Text, nullable=True)
+    e1_brand = Column(Text, nullable=True)
+    unilog_brand = Column(Text, nullable=True)
+    dib_brand = Column(Text, nullable=True)
+    part_manuf = Column(Text, nullable=True)
+    manufacturer_name = Column(Text, nullable=True)
+    delivery_fields = Column(JSONB, nullable=True)
+
     status = Column(Enum(*DETECTED_PRODUCT_STATUSES, name="detected_product_status_enum"), default="draft", nullable=False)
     created_at = Column(DateTime(timezone=True), default=_now)
 
