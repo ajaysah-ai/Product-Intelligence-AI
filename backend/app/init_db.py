@@ -52,6 +52,8 @@ def init_db():
         "ALTER TABLE temp_requests ADD COLUMN IF NOT EXISTS unilog_brand TEXT",
         "ALTER TABLE temp_requests ADD COLUMN IF NOT EXISTS dib_brand TEXT",
         "ALTER TABLE temp_requests ADD COLUMN IF NOT EXISTS part_manuf TEXT",
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS agent_provenance JSONB",
+        "ALTER TABLE temp_detected_products ADD COLUMN IF NOT EXISTS agent_provenance JSONB",
     ]
     with engine.connect() as conn:
         for stmt in migration_statements:

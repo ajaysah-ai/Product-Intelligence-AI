@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.approval.service import approve_request
 from app.config import MEDIA_DIR
 from app.db import check_db_connection
 from app.delivery.export import build_delivery_row
@@ -15,8 +16,8 @@ from app.delivery.schema import DELIVERY_COLUMNS
 from app.deps import get_db
 from app.extraction.batch import extract_batch
 from app.mcp_client.client import call_source_agent
-from app.models import TempDetectedProduct, TempDocument, TempProductAttribute, TempRequest
-from app.orchestration.service import orchestrate_request
+from app.models import Product, ProductAttribute, TempDetectedProduct, TempDocument, TempProductAttribute, TempRequest
+from app.orchestration.service import orchestrate_batch, orchestrate_request
 from app.services.chunk_embed_service import process_request_chunks_and_embeddings
 from app.validation import validate_single_file, validate_text_and_files
 
@@ -211,6 +212,26 @@ def orchestrate(request_id: str, payload: dict = Body(default={}), db: Session =
     return result
 
 
+@app.post("/orchestrate-batch")
+def orchestrate_batch_endpoint(payload: dict = Body(...), db: Session = Depends(get_db)):
+    """Concurrently orchestrates many requests at once — the real way to
+    process the full hackathon dataset instead of one row at a time through
+    the UI. Worker count follows the project's cores-2 rule.
+
+    Body: either {"request_ids": [...]} or {"all_pending": true} to process
+    every request that doesn't have a draft yet."""
+    request_ids = payload.get("request_ids")
+
+    if not request_ids and payload.get("all_pending"):
+        rows = db.execute(select(TempRequest.id).where(~TempRequest.detected_products.any())).scalars().all()
+        request_ids = [str(r) for r in rows]
+
+    if not request_ids:
+        return {"error": "Provide 'request_ids' (a list) or set 'all_pending': true"}
+
+    return orchestrate_batch(request_ids)
+
+
 @app.post("/import-dataset")
 async def import_dataset(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """Bulk-imports the hackathon's input CSV — one TempRequest per row,
@@ -298,3 +319,143 @@ def export_request(request_id: str, db: Session = Depends(get_db)):
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{request_id}.csv"'},
     )
+
+
+@app.get("/export-all")
+def export_all_products(db: Session = Depends(get_db)):
+    """Exports every approved Main DB product as ONE multi-row CSV in the
+    exact 252-column delivery format — this is the actual hackathon
+    deliverable shape (all products together), not the single-row export
+    above, which is for reviewing one product's result."""
+    products = db.execute(select(Product).order_by(Product.created_at.asc())).scalars().all()
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=DELIVERY_COLUMNS)
+    writer.writeheader()
+
+    for product in products:
+        attrs = db.execute(select(ProductAttribute).where(ProductAttribute.product_id == product.id)).scalars().all()
+        attribute_rows = [
+            {
+                "attribute_type": a.attribute_type,
+                "attribute_key": a.attribute_key,
+                "attribute_value": a.attribute_value,
+                "unit": a.unit,
+            }
+            for a in attrs
+        ]
+        core = {
+            "mfg_part_num": product.mfg_part_num,
+            "part_desc": product.part_desc,
+            "e1_brand": product.e1_brand,
+            "unilog_brand": product.unilog_brand,
+            "dib_brand": product.dib_brand,
+            "part_manuf": product.part_manuf,
+            "manufacturer_name": product.manufacturer_name,
+            "title": product.title,
+        }
+        row = build_delivery_row(core, product.delivery_fields, attribute_rows)
+        writer.writerow(row)
+
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": 'attachment; filename="delivery_export.csv"',
+            "X-Row-Count": str(len(products)),
+        },
+    )
+
+
+@app.post("/approve/{request_id}")
+def approve(request_id: str, payload: dict = Body(default={}), db: Session = Depends(get_db)):
+    """Approves a request's draft product, transactionally moving it (plus
+    its supporting documents/chunks/embeddings) into the Main DB. Body may
+    optionally override fields the frontend let the user edit before
+    approving: {"title", "manufacturer_name", "delivery_fields", "specs",
+    "features"}."""
+    result = approve_request(db, request_id, overrides=payload)
+    return result
+
+
+@app.get("/requests")
+def list_requests(db: Session = Depends(get_db)):
+    """Lists recent requests for the frontend's sidebar — newest first."""
+    rows = db.execute(select(TempRequest).order_by(TempRequest.created_at.desc()).limit(100)).scalars().all()
+    return {
+        "requests": [
+            {
+                "request_id": str(r.id),
+                "user_text": r.user_text,
+                "mfg_part_num": r.mfg_part_num,
+                "part_desc": r.part_desc,
+                "status": r.status,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "has_draft": len(r.detected_products) > 0,
+            }
+            for r in rows
+        ]
+    }
+
+
+@app.get("/requests/{request_id}")
+def get_request_detail(request_id: str, db: Session = Depends(get_db)):
+    """Full detail for one request: raw fields + its latest draft (if any),
+    including attributes — enough for the frontend to render and edit
+    without needing to re-run orchestration."""
+    temp_request = db.get(TempRequest, request_id)
+    if temp_request is None:
+        return {"error": "request_id not found"}
+
+    detected = (
+        db.execute(
+            select(TempDetectedProduct)
+            .where(TempDetectedProduct.temp_request_id == temp_request.id)
+            .order_by(TempDetectedProduct.created_at.desc())
+        )
+        .scalars()
+        .first()
+    )
+
+    draft = None
+    if detected is not None:
+        attrs = (
+            db.execute(select(TempProductAttribute).where(TempProductAttribute.temp_detected_product_id == detected.id))
+            .scalars()
+            .all()
+        )
+        draft = {
+            "detected_product_id": str(detected.id),
+            "title": detected.title,
+            "manufacturer_name": detected.manufacturer_name,
+            "delivery_fields": detected.delivery_fields or {},
+            "agent_provenance": detected.agent_provenance or {},
+            "specs": [
+                {
+                    "key": a.attribute_key,
+                    "value": a.attribute_value,
+                    "uom": a.unit,
+                    "confidence": a.confidence,
+                    "conflicts": (a.extra or {}).get("conflicts", []),
+                }
+                for a in attrs
+                if a.attribute_type == "spec"
+            ],
+            "features": [
+                {"value": a.attribute_value, "confidence": a.confidence} for a in attrs if a.attribute_type == "feature"
+            ],
+        }
+
+    return {
+        "request_id": request_id,
+        "user_text": temp_request.user_text,
+        "sources_selected": temp_request.sources_selected or [],
+        "mfg_part_num": temp_request.mfg_part_num,
+        "part_desc": temp_request.part_desc,
+        "e1_brand": temp_request.e1_brand,
+        "unilog_brand": temp_request.unilog_brand,
+        "dib_brand": temp_request.dib_brand,
+        "part_manuf": temp_request.part_manuf,
+        "status": temp_request.status,
+        "draft": draft,
+    }

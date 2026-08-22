@@ -1,13 +1,8 @@
-import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from app.concurrency import get_worker_count
 from app.extraction.dispatcher import extract_file
 from app.extraction.errors import ExtractionError
-
-
-def _worker_count() -> int:
-    cpu = os.cpu_count() or 2
-    return max(1, cpu - 2)
 
 
 def extract_batch(file_paths: list[str]) -> dict[str, dict]:
@@ -19,7 +14,7 @@ def extract_batch(file_paths: list[str]) -> dict[str, dict]:
     if not file_paths:
         return results
 
-    workers = min(_worker_count(), len(file_paths))
+    workers = min(get_worker_count(), len(file_paths))
     with ThreadPoolExecutor(max_workers=workers) as executor:
         future_to_path = {executor.submit(extract_file, p): p for p in file_paths}
         for future in as_completed(future_to_path):

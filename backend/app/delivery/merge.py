@@ -34,6 +34,21 @@ def _merge_lists_dedup(agent_results: dict, field: str, key_field: str) -> list[
     return [v[1] for v in best_by_key.values()]
 
 
+def _collect_conflicts(agent_results: dict) -> list[dict]:
+    """Every agent's Validate-step conflicts, tagged with which source found
+    them — dropped by mistake in an earlier rewrite; restored here so
+    Validation (per the requirements doc's Creation/Enrichment/Validation
+    trio) is actually visible in the final output, not just inside each
+    agent's raw result."""
+    conflicts = []
+    for source_type, result in agent_results.items():
+        if result.get("error"):
+            continue
+        for c in result.get("conflicts", []) or []:
+            conflicts.append({"source_type": source_type, **c})
+    return conflicts
+
+
 def merge_agent_results(agent_results: dict) -> dict:
     """Combines all sub-agents' results into one candidate record, picking
     the highest-confidence value per scalar field and deduping list fields
@@ -49,6 +64,7 @@ def merge_agent_results(agent_results: dict) -> dict:
         "category": _pick_highest_confidence(agent_results, "category"),
         "specs": _merge_lists_dedup(agent_results, "specs", "key"),
         "features": _merge_lists_dedup(agent_results, "features", "value"),
+        "conflicts": _collect_conflicts(agent_results),
         "urls": {
             source_type: r["used_url"]
             for source_type, r in agent_results.items()

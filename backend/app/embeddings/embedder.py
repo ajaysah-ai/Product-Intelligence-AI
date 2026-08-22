@@ -5,13 +5,16 @@ _model = None
 
 def _get_model():
     """Loads the model once and reuses it — SentenceTransformer construction
-    is expensive (model load + tokenizer), so this must not run per-call."""
+    is expensive (model load + tokenizer), so this must not run per-call.
+    Uses GPU automatically if one's available."""
     global _model
     if _model is None:
         from sentence_transformers import SentenceTransformer
 
+        from app.concurrency import get_device
+
         model_name = os.getenv("EMBEDDING_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2")
-        _model = SentenceTransformer(model_name)
+        _model = SentenceTransformer(model_name, device=get_device())
     return _model
 
 

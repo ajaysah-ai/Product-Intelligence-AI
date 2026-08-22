@@ -17,12 +17,15 @@ RERANK_SHORTLIST_SIZE = 15  # how many fused candidates actually go through the 
 def _get_reranker():
     """Cross-encoder reranker, lazy singleton like the embedding model. Reused
     across requests — construction cost is the same class of expense as
-    loading the embedding model in Phase 4."""
+    loading the embedding model in Phase 4. Uses GPU automatically if
+    one's available."""
     global _reranker
     if _reranker is None:
         from sentence_transformers import CrossEncoder
 
-        _reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+        from app.concurrency import get_device
+
+        _reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2", device=get_device())
     return _reranker
 
 

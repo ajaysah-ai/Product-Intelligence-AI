@@ -1,40 +1,46 @@
 import { useEffect, useState } from "react";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+import { listRequests } from "./api";
+import SubmitForm from "./components/SubmitForm";
+import BulkImportForm from "./components/BulkImportForm";
+import RequestList from "./components/RequestList";
+import RequestDetail from "./components/RequestDetail";
 
 export default function App() {
-  const [status, setStatus] = useState("checking...");
-  const [dbStatus, setDbStatus] = useState("checking...");
+  const [requests, setRequests] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+
+  const refreshList = async () => {
+    const result = await listRequests();
+    setRequests(result.requests || []);
+  };
 
   useEffect(() => {
-    const poll = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/health`);
-        const data = await res.json();
-        setStatus(data.status);
-      } catch {
-        setStatus("unreachable");
-      }
-
-      try {
-        const res = await fetch(`${API_BASE}/health/db`);
-        const data = await res.json();
-        setDbStatus(data.status);
-      } catch {
-        setDbStatus("unreachable");
-      }
-    };
-
-    poll();
-    const interval = setInterval(poll, 5000);
-    return () => clearInterval(interval);
+    refreshList();
   }, []);
 
+  const handleSubmitted = async (requestId) => {
+    await refreshList();
+    setSelectedId(requestId);
+  };
+
   return (
-    <div style={{ fontFamily: "sans-serif", padding: "2rem" }}>
-      <h1>Product Intelligence AI</h1>
-      <p>Backend status: <strong>{status}</strong></p>
-      <p>Database status: <strong>{dbStatus}</strong></p>
+    <div className="app-shell">
+      <div className="sidebar">
+        <div className="sidebar-header">
+          <div className="brand-mark">Product Intelligence AI</div>
+          <div className="brand-title">Catalog Review</div>
+        </div>
+        <SubmitForm onSubmitted={handleSubmitted} />
+        <BulkImportForm onImported={refreshList} />
+        <RequestList requests={requests} selectedId={selectedId} onSelect={setSelectedId} />
+      </div>
+      <div className="main-panel">
+        {selectedId ? (
+          <RequestDetail requestId={selectedId} onApproved={refreshList} />
+        ) : (
+          <div className="empty-state">Select a request, or submit a new one to get started.</div>
+        )}
+      </div>
     </div>
   );
 }

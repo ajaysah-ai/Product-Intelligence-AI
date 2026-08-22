@@ -62,6 +62,9 @@ class Product(Base):
     # keyed by the EXACT delivery column name, e.g. delivery_fields["MFR URL"].
     delivery_fields = Column(JSONB, nullable=True)
 
+    # Carried over from TempDetectedProduct at approval time — see there for shape.
+    agent_provenance = Column(JSONB, nullable=True)
+
     created_at = Column(DateTime(timezone=True), default=_now)
     updated_at = Column(DateTime(timezone=True), default=_now, onupdate=_now)
 
@@ -225,6 +228,11 @@ class TempDetectedProduct(Base):
     part_manuf = Column(Text, nullable=True)
     manufacturer_name = Column(Text, nullable=True)
     delivery_fields = Column(JSONB, nullable=True)
+
+    # Per-agent traceability: {source_type: {used_url, discovered_via_search,
+    # retrieved_count, confidence, error}} — lets the UI show exactly where
+    # each agent's data came from, not just the merged final result.
+    agent_provenance = Column(JSONB, nullable=True)
 
     status = Column(Enum(*DETECTED_PRODUCT_STATUSES, name="detected_product_status_enum"), default="draft", nullable=False)
     created_at = Column(DateTime(timezone=True), default=_now)
