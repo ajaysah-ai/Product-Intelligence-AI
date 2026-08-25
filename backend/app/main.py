@@ -321,6 +321,23 @@ def export_request(request_id: str, db: Session = Depends(get_db)):
     )
 
 
+@app.delete("/admin/purge-test-data")
+def purge_test_data(db: Session = Depends(get_db)):
+    """Removes Products left over from Claude's own automated test runs
+    (test_phase6/9, test_concurrency) — real dataset products always have
+    mfg_part_num set (from CSV import), test fixtures never do, so this is a
+    safe way to distinguish them. Deleting a Product cascades to its
+    Documents/Chunks/Embeddings/Attributes automatically. Run this if Hybrid
+    RAG is returning irrelevant Main DB matches for a fresh dataset test."""
+    test_products = db.execute(select(Product).where(Product.mfg_part_num.is_(None))).scalars().all()
+    count = len(test_products)
+    titles = [p.title for p in test_products]
+    for p in test_products:
+        db.delete(p)
+    db.commit()
+    return {"purged_count": count, "purged_titles": titles}
+
+
 @app.get("/export-all")
 def export_all_products(db: Session = Depends(get_db)):
     """Exports every approved Main DB product as ONE multi-row CSV in the

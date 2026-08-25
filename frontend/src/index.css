@@ -208,6 +208,33 @@ textarea {
   background: var(--surface-raised);
 }
 
+.batch-run-controls {
+  margin-top: 4px;
+}
+
+.batch-run-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.batch-run-count {
+  width: 60px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.batch-run-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.export-all-footer {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+
 /* ---------- Request list ---------- */
 
 .request-list {
@@ -221,6 +248,15 @@ textarea {
   color: var(--text-tertiary);
   font-size: 12px;
   text-align: center;
+}
+
+.request-list-section-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding: 10px 12px 6px;
 }
 
 .request-item {

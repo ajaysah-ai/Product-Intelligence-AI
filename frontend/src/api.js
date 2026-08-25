@@ -61,3 +61,30 @@ export async function approveRequest(requestId, overrides = {}) {
   });
   return handle(res);
 }
+
+export async function orchestrateBatch(requestIds) {
+  const res = await fetch(`${API_BASE}/orchestrate-batch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ request_ids: requestIds }),
+  });
+  return handle(res);
+}
+
+export async function exportAllCsv() {
+  const res = await fetch(`${API_BASE}/export-all`);
+  if (!res.ok) {
+    throw new Error(`Export failed: ${res.status}`);
+  }
+  const rowCount = res.headers.get("x-row-count");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "delivery_export.csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  return { rowCount: rowCount ? parseInt(rowCount, 10) : null };
+}

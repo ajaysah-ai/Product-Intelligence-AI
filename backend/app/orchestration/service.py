@@ -106,6 +106,7 @@ def orchestrate_request(db: Session, request_id: str, urls: dict | None = None, 
             "retrieved_origins": r.get("retrieved_origins", []),
             "confidence": r.get("confidence"),
             "conflicts": r.get("conflicts", []),
+            "normalize_method": r.get("normalize_method"),
             "error": r.get("error"),
         }
         for source_type, r in agent_results.items()

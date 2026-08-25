@@ -99,14 +99,20 @@ def _heuristic_normalize(text: str) -> dict:
 
 
 def normalize_chunks(chunks_text: str) -> dict:
-    """Returns the full extraction shape (see _empty_result). Uses the LLM
-    when GROQ_API_KEY is configured, otherwise falls back to heuristics."""
+    """Returns the full extraction shape (see _empty_result) plus a
+    "_normalize_method" field ("llm" or "heuristic_fallback") so callers can
+    tell which path actually ran — a silent fallback here was hard to debug
+    from the outside, this makes it visible."""
     if not chunks_text or not chunks_text.strip():
-        return _empty_result()
+        result = _empty_result()
+        result["_normalize_method"] = "empty_input"
+        return result
 
     llm = _get_llm()
     if llm is None:
-        return _heuristic_normalize(chunks_text)
+        result = _heuristic_normalize(chunks_text)
+        result["_normalize_method"] = "heuristic_fallback_no_key"
+        return result
 
     try:
         response = llm.invoke(NORMALIZE_PROMPT.format(text=chunks_text[:6000]))
@@ -117,8 +123,14 @@ def normalize_chunks(chunks_text: str) -> dict:
             raise ValueError("Unexpected LLM response shape")
         result = _empty_result()
         result.update({k: v for k, v in parsed.items() if k in result})
+        result["_normalize_method"] = "llm"
         return result
-    except Exception:
+    except Exception as e:
         # LLM call failed or returned unparseable output — don't fail the
-        # whole sub-agent over it, degrade to the heuristic path.
-        return _heuristic_normalize(chunks_text)
+        # whole sub-agent over it, degrade to the heuristic path. But this
+        # must be visible, not silent — print for docker logs, and tag the
+        # result so the API/UI can surface it too.
+        print(f"[normalize_chunks] LLM call failed, falling back to heuristic: {e}")
+        result = _heuristic_normalize(chunks_text)
+        result["_normalize_method"] = f"heuristic_fallback_llm_error: {e}"
+        return result

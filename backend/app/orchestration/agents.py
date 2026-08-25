@@ -134,6 +134,7 @@ def run_sub_agent(source_type: str, temp_request_id: str, user_text: str, url: s
             "category": normalized["category"],
             "conflicts": conflicts,
             "confidence": confidence,
+            "normalize_method": normalized.get("_normalize_method"),
             "error": None,
         }
     except Exception as e:

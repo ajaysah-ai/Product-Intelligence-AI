@@ -89,6 +89,15 @@ export default function SourcesPanel({ provenance }) {
                     ⚠ {info.conflicts.length} conflict{info.conflicts.length === 1 ? "" : "s"} vs Main DB
                   </span>
                 )}
+                {info.normalize_method && info.normalize_method !== "llm" && (
+                  <span
+                    className="conflict-flag"
+                    style={{ marginLeft: 8 }}
+                    title={info.normalize_method}
+                  >
+                    ⚠ LLM not used ({info.normalize_method.startsWith("heuristic_fallback_llm_error") ? "LLM call failed" : "no API key"})
+                  </span>
+                )}
               </div>
             </div>
           );
