@@ -119,6 +119,6 @@ Built entirely on open-source components except LLM inference, which runs on Gro
 ## Links
 
 - GitHub Public Repository: **[[YOU FILL IN — push your code to a public repo]](https://github.com/ajaysah-ai/Product-Intelligence-AI)**
-- Demo Video Link (3 minutes): **[Product_Intelligence_AI_Demo.mov](Product_Intelligence_AI_Demo.mov)**
+- Demo Video Link (3 minutes): **https://drive.google.com/file/d/1JeqX0mjZsFU4vs23cLST9tqE55yFBgzx/view?usp=drivesdk**
 
 ---
