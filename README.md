@@ -1,7 +1,4 @@
-# UniHack Submission — Content Draft
-
-**⚠️ Fields marked [YOU FILL IN] need your input — I have no way to know these.**
-
+# UniHack Submission -
 ---
 
 ## Team Details
