@@ -118,6 +118,17 @@ export default function RequestDetail({ requestId, onApproved }) {
 
   if (loading) return <div className="empty-state">Loading…</div>;
   if (!detail) return <div className="empty-state">Request not found.</div>;
+  if (detail.error) {
+    return (
+      <div className="empty-state" style={{ flexDirection: "column", gap: 10 }}>
+        <div>⚠ {detail.error}</div>
+        <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+          This usually means the database was reset (e.g. after a rebuild) since this request was created.
+          Reload the page and re-import/re-submit.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
