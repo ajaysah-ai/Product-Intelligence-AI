@@ -21,10 +21,10 @@ Product Intelligence AI is a multi-agent system that turns minimal product data 
 ```docker compose up --build -d```
 
 **3. Services**
-*Frontend - http://127.0.0.1:5173*
-*Backend - http://127.0.0.1:8000*
-*MCP Server - http://127.0.0.1/8100*
-*Database - http://127.0.0.1/5432*
+*Frontend - http://127.0.0.1:5173*\n
+*Backend - http://127.0.0.1:8000*\n
+*MCP Server - http://127.0.0.1/8100*\n
+*Database - http://127.0.0.1/5432*\n
 ---
 
 ## 1. How does your solution enrich minimal product information?
