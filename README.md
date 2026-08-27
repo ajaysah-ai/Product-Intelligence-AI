@@ -13,6 +13,20 @@ Product Intelligence AI is a multi-agent system that turns minimal product data 
 
 ---
 
+## How to run
+
+**1. First check that Docker Desktop is installed or not?**
+
+**2. Then Run** 
+```docker compose up --build -d```
+
+**3. Services**
+*Frontend - http://127.0.0.1:5173*
+*Backend - http://127.0.0.1:8000*
+*MCP Server - http://127.0.0.1/8100*
+*Database - http://127.0.0.1/5432*
+---
+
 ## 1. How does your solution enrich minimal product information?
 
 Given only a part number, brand, and short description, the Supervisor agent activates up to four specialized sub-agents in parallel — Website, Catalog, Tech Doc, and Digital Asset. Each runs its own pipeline: a Planner formulates a source-specific search query, an Executor performs a live web search (when no URL is already known) and fetches the resulting page or document through dedicated MCP tools, and an extraction layer converts PDFs, Word documents, HTML pages, spreadsheets, and images (via OCR) into clean text. That text is then retrieved through a Hybrid RAG step — combining vector similarity search, BM25 keyword search, Reciprocal Rank Fusion, and a cross-encoder reranker — before an LLM-based Normalize step extracts structured fields: title, manufacturer, technical specifications, features, dimensions, identifiers (UPC/EAN/GTIN), warranty, price, and category. The four agents' outputs are merged using confidence-weighted selection, turning a six-field input row into a fully populated 252-column output record.
